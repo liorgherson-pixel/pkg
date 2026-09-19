@@ -1,0 +1,102 @@
+nano pkg
+---
+---
+---
+#!/usr/bin/env bash
+
+# Colors for UI
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# Detect an AUR helper (paru or yay)
+detect_aur() {
+    if command -v paru &> /dev/null; then
+        echo "paru"
+    elif command -v yay &> /dev/null; then
+        echo "yay"
+    else
+        echo ""
+    fi
+}
+
+AUR_HELPER=$(detect_aur)
+
+# Print usage instructions
+show_help() {
+    echo -e "${BLUE}DIY Arch Package Wrapper${NC}"
+    echo "Usage:"
+    echo "  pkg install <package_name>  - Install packages (checks Official first, then AUR)"
+    echo "  pkg remove <package_name>   - Remove packages along with their unneeded dependencies"
+    echo "  pkg update                  - Update all system and AUR packages"
+    echo "  pkg edit                    - Open pacman configuration using nano"
+    exit 1
+}
+
+# Main Command Router
+case "$1" in
+    install)
+        shift
+        if [ -z "$1" ]; then
+            log_error "Please specify a package to install."
+            exit 1
+        fi
+        
+        log_info "Attempting to install: $*"
+        # Try pacman first, fallback to AUR helper if pacman fails or if package isn't in official repos
+        if sudo pacman -S --needed --noconfirm "$@"; then
+            log_success "Packages installed successfully via pacman."
+        elif [ -n "$AUR_HELPER" ]; then
+            log_info "Official repository installation bypassed or failed. Trying $AUR_HELPER..."
+            $AUR_HELPER -S "$@"
+        else
+            log_error "Package not found in official repositories and no AUR helper (yay/paru) detected."
+        fi
+        ;;
+
+    remove)
+        shift
+        if [ -z "$1" ]; then
+            log_error "Please specify a package to remove."
+            exit 1
+        fi
+        
+        log_info "Removing packages and their unused dependencies: $*"
+        # -Rns removes the package, its recursive unneeded dependencies, and config files
+        sudo pacman -Rns "$@"
+        ;;
+
+    update)
+        log_info "Starting full system synchronization..."
+        if [ -n "$AUR_HELPER" ]; then
+            log_info "Updating system and AUR packages via $AUR_HELPER..."
+            $AUR_HELPER -Syu
+        else
+            log_info "Updating system packages via pacman..."
+            sudo pacman -Syu
+        fi
+        ;;
+
+    edit)
+        log_info "Opening /etc/pacman.conf with nano..."Use Control + Shift + m to toggle the tab key moving focus. Alternatively, use esc then tab to move to the next interactive element on the page.
+        sudo nano /etc/pacman.conf
+        ;;
+
+    *)
+        show_help
+        ;;
+esac
+---
+---
+---
+chmod +x pkg
+---
+---
+---
+sudo mv pkg /usr/local/bin/
+.
